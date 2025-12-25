@@ -27,10 +27,10 @@ PDF_PAGE_LIMIT = 20  # ★1ファイルあたりのページ数
 GLOBAL_OFFSET_X_MM = 0
 GLOBAL_OFFSET_Y_MM = 0
 
-POSTAL_OFFSET_X_MM = 60
+POSTAL_OFFSET_X_MM = 50
 POSTAL_OFFSET_Y_MM = 0
 
-ADDR_OFFSET_X_MM = 80
+ADDR_OFFSET_X_MM = 70
 ADDR_OFFSET_Y_MM = 0
 
 NAME_OFFSET_X_MM = 0
@@ -156,7 +156,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             gy = GLOBAL_OFFSET_Y_MM
 
             # 郵便番号
-            c.setFont(FONT_NAME, 16)
+            c.setFont(FONT_NAME, 20)
             px = BASE_POSTAL_X_MM + gx + POSTAL_OFFSET_X_MM
             py = BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM
             c.drawString(px * mm, y_from_top_mm(py), f"〒{postal}")
