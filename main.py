@@ -46,7 +46,6 @@ NAME_LEADING_MM = 12    # 氏名
 
 # =========================
 # ベース配置（mm）※PDF左上 기준
-# （必要に応じてここを調整）
 # =========================
 BASE_POSTAL_X_MM = 12
 BASE_POSTAL_Y_MM = 18
@@ -61,10 +60,6 @@ BASE_NAME_Y_TOP_MM = 40
 def format_postal(code: str) -> str:
     s = "".join(filter(str.isdigit, str(code)))
     return f"{s[:3]}-{s[3:]}" if len(s) == 7 else str(code).strip()
-
-
-def sanitize_filename(name: str) -> str:
-    return "".join(c if c not in '\\/:*?"<>|' else "_" for c in str(name))
 
 
 def split_address_for_sample_style(address: str) -> str:
@@ -90,9 +85,6 @@ def draw_vertical_text_from_top(
     """
     1文字ずつ下に描く簡易縦書き（各文字を縦列の中心に中央揃え可能）
     入力はすべて「左上 기준（上から何mm）」で指定
-
-    center_each_char=True のとき：
-      - 各文字の幅を測って x を補正 → 数字だけ左に寄る問題が解消
     """
     x_center = x_mm * mm
     y = y_from_top_mm(y_top_mm)
@@ -117,8 +109,13 @@ def draw_vertical_text_from_top(
 
 
 # =========================
-# メイン
+# 1つのPDFにまとめて出力
 # =========================
+merged_pdf_path = OUTPUT_DIR / "宛名まとめ.pdf"
+c = canvas.Canvas(str(merged_pdf_path), pagesize=(PAGE_W, PAGE_H))
+
+page_count = 0
+
 for csv_path in INPUT_DIR.glob("*.csv"):
     print(f"処理中: {csv_path.name}")
 
@@ -126,15 +123,12 @@ for csv_path in INPUT_DIR.glob("*.csv"):
         reader = csv.DictReader(f)
 
         for row in reader:
-            postal = format_postal(row["郵便番号"])
-            address = split_address_for_sample_style(row["住所"])
-            name = str(row["氏名"]).strip()
+            postal = format_postal(row.get("郵便番号", ""))
+            address = split_address_for_sample_style(row.get("住所", ""))
+            name = str(row.get("氏名", "")).strip()
 
             if not (postal or address or name):
                 continue
-
-            out = OUTPUT_DIR / f"宛名_{sanitize_filename(name or 'no_name')}.pdf"
-            c = canvas.Canvas(str(out), pagesize=(PAGE_W, PAGE_H))
 
             # 全体オフセット（左上 기준）
             gx = GLOBAL_OFFSET_X_MM
@@ -146,7 +140,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             py = BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM
             c.drawString(px * mm, y_from_top_mm(py), f"〒{postal}")
 
-            # 住所（縦書き）※各文字を中央揃え
+            # 住所（縦書き）
             addr_font_size = 14
             c.setFont(FONT_NAME, addr_font_size)
             ax = BASE_ADDR_X_MM + gx + ADDR_OFFSET_X_MM
@@ -157,8 +151,8 @@ for csv_path in INPUT_DIR.glob("*.csv"):
                 center_each_char=True
             )
 
-            # 氏名（縦書き）※各文字を中央揃え
-            name_font_size = 30
+            # 氏名（縦書き）
+            name_font_size = 20
             c.setFont(FONT_NAME, name_font_size)
             nx = BASE_NAME_X_MM + gx + NAME_OFFSET_X_MM
             ny = BASE_NAME_Y_TOP_MM + gy + NAME_OFFSET_Y_MM
@@ -168,16 +162,11 @@ for csv_path in INPUT_DIR.glob("*.csv"):
                 center_each_char=True
             )
 
-            # （任意）郵便番号を縦書きにしたい場合は、上の横書きdrawStringを消して下を使う
-            # postal_font_size = 16
-            # c.setFont(FONT_NAME, postal_font_size)
-            # draw_vertical_text_from_top(
-            #     c, px, py, f"〒{postal}", POSTAL_LEADING_MM,
-            #     font_name=FONT_NAME, font_size=postal_font_size,
-            #     center_each_char=True
-            # )
-
+            # 次ページへ（1宛名=1ページ）
             c.showPage()
-            c.save()
+            page_count += 1
 
-print("短辺が上のPDF配置（左上オフセット基準・文字間個別調整・各文字中央揃え）でPDF生成が完了しました。")
+# 1回だけ保存
+c.save()
+
+print(f"完了: {merged_pdf_path}（{page_count}ページ）")
