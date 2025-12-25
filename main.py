@@ -40,7 +40,7 @@ NAME_OFFSET_Y_MM = 0
 # ★文字間（縦送り）調整（mm）
 # =========================
 ADDR_LEADING_MM = 6
-NAME_LEADING_MM = 12
+NAME_LEADING_MM = 10
 
 # =========================
 # ベース配置（mm）
