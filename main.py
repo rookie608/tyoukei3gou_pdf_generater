@@ -30,7 +30,8 @@ GLOBAL_OFFSET_Y_MM = 0
 POSTAL_OFFSET_X_MM = 50
 POSTAL_OFFSET_Y_MM = 0
 
-ADDR_OFFSET_X_MM = 70
+# ※住所は「右上基準」に切り替える（ADDR_OFFSET_X_MM は右端からの距離として扱う）
+ADDR_OFFSET_X_MM = 0
 ADDR_OFFSET_Y_MM = 0
 
 NAME_OFFSET_X_MM = 0
@@ -48,7 +49,7 @@ NAME_LEADING_MM = 10
 BASE_POSTAL_X_MM = 12
 BASE_POSTAL_Y_MM = 18
 
-# 住所
+# 住所（Yは左上基準のまま、Xだけ右上基準にする）
 BASE_ADDR_X_MM = 18
 BASE_ADDR_Y_TOP_MM = 40
 ADDR_COLUMN_GAP_MM = 12
@@ -122,6 +123,7 @@ pdf_index = 1
 page_in_current_pdf = 0
 c = None
 
+
 def start_new_pdf(index: int):
     path = OUTPUT_DIR / f"宛名_{index:03d}.pdf"
     return canvas.Canvas(str(path), pagesize=(PAGE_W, PAGE_H)), path
@@ -129,6 +131,8 @@ def start_new_pdf(index: int):
 
 c, current_pdf_path = start_new_pdf(pdf_index)
 total_pages = 0
+
+PAGE_W_MM = PAGE_W / mm  # 幅をmm単位で使うため
 
 for csv_path in INPUT_DIR.glob("*.csv"):
     print(f"処理中: {csv_path.name}")
@@ -161,21 +165,26 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             py = BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM
             c.drawString(px * mm, y_from_top_mm(py), f"〒{postal}")
 
-            # ===== 住所（2列対応）=====
+            # ===== 住所（2列対応 / Xは右上基準）=====
             addr_font_size = 14
             c.setFont(FONT_NAME, addr_font_size)
 
             addr_a, addr_b = split_two_blocks_by_space(address_raw)
-            addr_x = BASE_ADDR_X_MM + gx + ADDR_OFFSET_X_MM
+
+            # ★右上基準：右端からの距離で x を決める
+            # addr_x は「右列（前半）」の列中心 X（mm）
+            addr_x = PAGE_W_MM - (BASE_ADDR_X_MM + ADDR_OFFSET_X_MM + gx)
             addr_y = BASE_ADDR_Y_TOP_MM + gy + ADDR_OFFSET_Y_MM
 
             if addr_b:
-                draw_vertical_text_from_top(
-                    c, addr_x + ADDR_COLUMN_GAP_MM, addr_y,
-                    addr_a, ADDR_LEADING_MM, FONT_NAME, addr_font_size, True
-                )
+                # 右列：前半（都道府県など）
                 draw_vertical_text_from_top(
                     c, addr_x, addr_y,
+                    addr_a, ADDR_LEADING_MM, FONT_NAME, addr_font_size, True
+                )
+                # 左列：後半（番地など） ※右上基準なので「- GAP」で左へ
+                draw_vertical_text_from_top(
+                    c, addr_x - ADDR_COLUMN_GAP_MM, addr_y,
                     addr_b, ADDR_LEADING_MM, FONT_NAME, addr_font_size, True
                 )
             else:
