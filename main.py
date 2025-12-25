@@ -34,14 +34,14 @@ POSTAL_OFFSET_Y_MM = 0
 ADDR_OFFSET_X_MM = 80
 ADDR_OFFSET_Y_MM = 0
 
-NAME_OFFSET_X_MM = -5
+NAME_OFFSET_X_MM = 0
 NAME_OFFSET_Y_MM = 0
 
 # =========================
 # ★文字間（縦送り）調整（mm）
 # =========================
 POSTAL_LEADING_MM = 12  # 郵便番号を縦書きにしたい場合に使用（現状は横書き）
-ADDR_LEADING_MM = 6    # 住所
+ADDR_LEADING_MM = 6     # 住所
 NAME_LEADING_MM = 12    # 氏名
 
 # =========================
@@ -77,12 +77,24 @@ def y_from_top_mm(y_mm_from_top: float) -> float:
     return PAGE_H - (y_mm_from_top * mm)
 
 
-def draw_vertical_text_from_top(c: canvas.Canvas, x_mm: float, y_top_mm: float, text: str, leading_mm: float):
+def draw_vertical_text_from_top(
+    c: canvas.Canvas,
+    x_mm: float,
+    y_top_mm: float,
+    text: str,
+    leading_mm: float,
+    font_name: str,
+    font_size: float,
+    center_each_char: bool = True
+):
     """
-    1文字ずつ下に描く簡易縦書き
+    1文字ずつ下に描く簡易縦書き（各文字を縦列の中心に中央揃え可能）
     入力はすべて「左上 기준（上から何mm）」で指定
+
+    center_each_char=True のとき：
+      - 各文字の幅を測って x を補正 → 数字だけ左に寄る問題が解消
     """
-    x = x_mm * mm
+    x_center = x_mm * mm
     y = y_from_top_mm(y_top_mm)
     leading = leading_mm * mm
 
@@ -93,7 +105,14 @@ def draw_vertical_text_from_top(c: canvas.Canvas, x_mm: float, y_top_mm: float, 
         if ch == " ":
             y -= leading * 0.6
             continue
-        c.drawString(x, y, ch)
+
+        if center_each_char:
+            w = pdfmetrics.stringWidth(ch, font_name, font_size)
+            x_draw = x_center - (w / 2.0)
+        else:
+            x_draw = x_center
+
+        c.drawString(x_draw, y, ch)
         y -= leading
 
 
@@ -127,23 +146,38 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             py = BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM
             c.drawString(px * mm, y_from_top_mm(py), f"〒{postal}")
 
-            # 住所（縦書き）
-            c.setFont(FONT_NAME, 14)
+            # 住所（縦書き）※各文字を中央揃え
+            addr_font_size = 14
+            c.setFont(FONT_NAME, addr_font_size)
             ax = BASE_ADDR_X_MM + gx + ADDR_OFFSET_X_MM
             ay = BASE_ADDR_Y_TOP_MM + gy + ADDR_OFFSET_Y_MM
-            draw_vertical_text_from_top(c, ax, ay, address, ADDR_LEADING_MM)
+            draw_vertical_text_from_top(
+                c, ax, ay, address, ADDR_LEADING_MM,
+                font_name=FONT_NAME, font_size=addr_font_size,
+                center_each_char=True
+            )
 
-            # 氏名（縦書き）
-            c.setFont(FONT_NAME, 30)
+            # 氏名（縦書き）※各文字を中央揃え
+            name_font_size = 30
+            c.setFont(FONT_NAME, name_font_size)
             nx = BASE_NAME_X_MM + gx + NAME_OFFSET_X_MM
             ny = BASE_NAME_Y_TOP_MM + gy + NAME_OFFSET_Y_MM
-            draw_vertical_text_from_top(c, nx, ny, f"{name}様", NAME_LEADING_MM)
+            draw_vertical_text_from_top(
+                c, nx, ny, f"{name}様", NAME_LEADING_MM,
+                font_name=FONT_NAME, font_size=name_font_size,
+                center_each_char=True
+            )
 
             # （任意）郵便番号を縦書きにしたい場合は、上の横書きdrawStringを消して下を使う
-            # c.setFont(FONT_NAME, 16)
-            # draw_vertical_text_from_top(c, px, py, f"〒{postal}", POSTAL_LEADING_MM)
+            # postal_font_size = 16
+            # c.setFont(FONT_NAME, postal_font_size)
+            # draw_vertical_text_from_top(
+            #     c, px, py, f"〒{postal}", POSTAL_LEADING_MM,
+            #     font_name=FONT_NAME, font_size=postal_font_size,
+            #     center_each_char=True
+            # )
 
             c.showPage()
             c.save()
 
-print("短辺が上のPDF配置（左上オフセット基準・文字間個別調整）でPDF生成が完了しました。")
+print("短辺が上のPDF配置（左上オフセット基準・文字間個別調整・各文字中央揃え）でPDF生成が完了しました。")
