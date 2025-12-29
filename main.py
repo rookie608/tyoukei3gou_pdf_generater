@@ -45,8 +45,8 @@ NAME_LEADING_MM = 8
 # =========================
 # ★名の段落下げ設定
 # =========================
-MEI_INDENT_STEPS = 11        # 名がある場合
-MEI_INDENT_STEPS_NO_MEI = 13 # 名がない場合（より下げる）
+MEI_INDENT_STEPS = 11
+MEI_INDENT_STEPS_NO_MEI = 13
 
 # =========================
 # ベース配置（mm）
@@ -62,6 +62,31 @@ BASE_NAME_X_MM = 55
 BASE_NAME_Y_TOP_MM = 40
 NAME_COLUMN_GAP_MM = 12
 
+# =========================
+# ★縦書き回転制御
+# =========================
+ROTATE_90_CHARS = set([
+    "、", "。", "，", "．",
+    "ー", "-", "−", "―", "—",
+    "（", "）", "(", ")",
+    "「", "」", "『", "』",
+])
+
+# ★向きが逆なので180度追加回転
+FLIP_180_CHARS = set([
+    "（", "）", "(", ")",
+    "「", "」", "『", "』",
+])
+
+# ★回転文字の微調整（font_size倍率）
+# rotate(90)後は y を増やすと「左」に寄る
+ROTATE_ADJUST = {
+    "ー": {"dx": 0.0, "dy": 0.13},
+    "―": {"dx": 0.0, "dy": 0.18},
+    "—": {"dx": 0.0, "dy": 0.18},
+    "-": {"dx": 0.0, "dy": 0.12},
+    "−": {"dx": 0.0, "dy": 0.12},
+}
 
 # =========================
 # ユーティリティ
@@ -104,18 +129,48 @@ def draw_vertical_text_from_top(
     y = y_from_top_mm(y_top_mm)
     leading = leading_mm * mm
 
+    # ★中央揃え用パラメータ
+    PIVOT_Y_FACTOR = 0.35   # 回転中心補正
+    DRAW_Y_FACTOR  = 0.50   # 回転後の縦中央寄せ
+
     for ch in str(text):
         if ch == "\n":
             y -= leading
             continue
 
+        w = pdfmetrics.stringWidth(ch, font_name, font_size)
+
         if center_each_char:
-            w = pdfmetrics.stringWidth(ch, font_name, font_size)
             x_draw = x_center - (w / 2)
         else:
             x_draw = x_center
 
-        c.drawString(x_draw, y, ch)
+        if ch in ROTATE_90_CHARS:
+            c.saveState()
+
+            pivot_x = x_center
+            pivot_y = y + (font_size * PIVOT_Y_FACTOR)
+            c.translate(pivot_x, pivot_y)
+
+            angle = 90 + (180 if ch in FLIP_180_CHARS else 0)
+            c.rotate(angle)
+
+            c.setFont(font_name, font_size)
+
+            adj = ROTATE_ADJUST.get(ch, {"dx": 0.0, "dy": 0.0})
+            dx = font_size * adj["dx"]
+            dy = font_size * adj["dy"]
+
+            c.drawString(
+                (-w / 2) + dx,
+                (-font_size * DRAW_Y_FACTOR) + dy,
+                ch
+            )
+
+            c.restoreState()
+        else:
+            c.drawString(x_draw, y, ch)
+
         y -= leading
 
 
@@ -124,15 +179,14 @@ def draw_vertical_text_from_top(
 # =========================
 pdf_index = 1
 page_in_current_pdf = 0
-c = None
 
 
 def start_new_pdf(index: int):
     path = OUTPUT_DIR / f"宛名_{index:03d}.pdf"
-    return canvas.Canvas(str(path), pagesize=(PAGE_W, PAGE_H)), path
+    return canvas.Canvas(str(path), pagesize=(PAGE_W, PAGE_H))
 
 
-c, _ = start_new_pdf(pdf_index)
+c = start_new_pdf(pdf_index)
 total_pages = 0
 PAGE_W_MM = PAGE_W / mm
 
@@ -153,7 +207,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
                 c.save()
                 pdf_index += 1
                 page_in_current_pdf = 0
-                c, _ = start_new_pdf(pdf_index)
+                c = start_new_pdf(pdf_index)
 
             gx = GLOBAL_OFFSET_X_MM
             gy = GLOBAL_OFFSET_Y_MM
@@ -191,15 +245,13 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             name_x = BASE_NAME_X_MM + gx + NAME_OFFSET_X_MM
             name_y = BASE_NAME_Y_TOP_MM + gy + NAME_OFFSET_Y_MM
 
-            # 氏
             if sei:
                 draw_vertical_text_from_top(
                     c, name_x + NAME_COLUMN_GAP_MM, name_y,
                     sei, NAME_LEADING_MM, FONT_NAME, name_font_size, True
                 )
 
-            # 名 or ご担当者様
-            left_text = f"{mei} ご担当者様".strip() if mei else "ご担当者様"
+            left_text = f"{mei} ご担当者　様".strip() if mei else "ご担当者　様"
             indent_steps = MEI_INDENT_STEPS if mei else MEI_INDENT_STEPS_NO_MEI
             mei_y = name_y + (NAME_LEADING_MM * indent_steps)
 
@@ -212,7 +264,5 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             page_in_current_pdf += 1
             total_pages += 1
 
-if c:
-    c.save()
-
+c.save()
 print(f"完了：{total_pages}ページを {pdf_index} ファイルに分割して出力しました。")
