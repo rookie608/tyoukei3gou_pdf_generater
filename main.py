@@ -45,7 +45,7 @@ NAME_LEADING_MM = 8
 # =========================
 # ★名の段落下げ設定
 # =========================
-MEI_INDENT_STEPS = 11
+MEI_INDENT_STEPS = 6
 MEI_INDENT_STEPS_NO_MEI = 13
 
 # =========================
