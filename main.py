@@ -81,12 +81,18 @@ FLIP_180_CHARS = set([
 # ★回転文字の微調整（font_size倍率）
 # rotate(90)後は y を増やすと「左」に寄る
 ROTATE_ADJUST = {
-    "ー": {"dx": 0.0, "dy": 0.13},
+    "ー": {"dx": 0.0, "dy": 0.18},
     "―": {"dx": 0.0, "dy": 0.18},
     "—": {"dx": 0.0, "dy": 0.18},
-    "-": {"dx": 0.0, "dy": 0.12},
-    "−": {"dx": 0.0, "dy": 0.12},
+    "-": {"dx": 0.0, "dy": 0.18},
+    "−": {"dx": 0.0, "dy": 0.18},
 }
+
+# =========================
+# ★長音「ー」専用スタイル（サイズで区別）
+# =========================
+CHOONPU_SIZE_SCALE = 0.75   # 0.70〜0.85 推奨
+CHOONPU_EXTRA_SHIFT = 0.10  # 左寄せ微調整（font_size倍率）
 
 # =========================
 # ユーティリティ
@@ -97,7 +103,7 @@ def format_postal(code: str) -> str:
 
 
 def split_address_for_sample_style(address: str) -> str:
-    return str(address).replace("-", "ー").replace("−", "ー").replace("―", "ー")
+    return str(address)
 
 
 def split_two_blocks_by_space(s: str):
@@ -130,8 +136,8 @@ def draw_vertical_text_from_top(
     leading = leading_mm * mm
 
     # ★中央揃え用パラメータ
-    PIVOT_Y_FACTOR = 0.35   # 回転中心補正
-    DRAW_Y_FACTOR  = 0.50   # 回転後の縦中央寄せ
+    PIVOT_Y_FACTOR = 0.35
+    DRAW_Y_FACTOR = 0.50
 
     for ch in str(text):
         if ch == "\n":
@@ -155,15 +161,24 @@ def draw_vertical_text_from_top(
             angle = 90 + (180 if ch in FLIP_180_CHARS else 0)
             c.rotate(angle)
 
-            c.setFont(font_name, font_size)
+            # ---- 文字ごとの描画サイズ調整 ----
+            draw_font_size = font_size
+            extra_dx = 0.0
+            extra_dy = 0.0
+
+            if ch == "ー":
+                draw_font_size = font_size * CHOONPU_SIZE_SCALE
+                extra_dy = font_size * CHOONPU_EXTRA_SHIFT
+
+            c.setFont(font_name, draw_font_size)
 
             adj = ROTATE_ADJUST.get(ch, {"dx": 0.0, "dy": 0.0})
             dx = font_size * adj["dx"]
             dy = font_size * adj["dy"]
 
             c.drawString(
-                (-w / 2) + dx,
-                (-font_size * DRAW_Y_FACTOR) + dy,
+                (-w / 2) + dx + extra_dx,
+                (-font_size * DRAW_Y_FACTOR) + dy + extra_dy,
                 ch
             )
 
