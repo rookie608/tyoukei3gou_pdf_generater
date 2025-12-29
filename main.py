@@ -41,7 +41,7 @@ NAME_OFFSET_Y_MM = 0
 # ★文字間（縦送り）調整（mm）
 # =========================
 ADDR_LEADING_MM = 6
-NAME_LEADING_MM = 10
+NAME_LEADING_MM = 8
 
 # =========================
 # ベース配置（mm）
@@ -194,7 +194,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
                 )
 
             # ===== 氏名（右=氏 / 左=名+様）=====
-            name_font_size = 20
+            name_font_size = 18
             c.setFont(FONT_NAME, name_font_size)
 
             name_x = BASE_NAME_X_MM + gx + NAME_OFFSET_X_MM
@@ -208,7 +208,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             if mei:
                 draw_vertical_text_from_top(
                     c, name_x, name_y,
-                    f"{mei}様", NAME_LEADING_MM, FONT_NAME, name_font_size, True
+                    f"{mei}　ご担当者様", NAME_LEADING_MM, FONT_NAME, name_font_size, True
                 )
 
             c.showPage()
