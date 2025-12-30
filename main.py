@@ -28,7 +28,7 @@ GLOBAL_OFFSET_X_MM = 0
 GLOBAL_OFFSET_Y_MM = 0
 
 POSTAL_OFFSET_X_MM = 50
-POSTAL_OFFSET_Y_MM = 0
+POSTAL_OFFSET_Y_MM = 10
 
 ADDR_OFFSET_X_MM = 0
 ADDR_OFFSET_Y_MM = 0
@@ -47,6 +47,13 @@ NAME_LEADING_MM = 8
 # =========================
 MEI_INDENT_STEPS = 6
 MEI_INDENT_STEPS_NO_MEI = 13
+
+# =========================
+# ★郵便番号の文字間（トラッキング）調整（mm）
+# 0.0で通常。+で広く、-で詰める
+# 例）0.6〜1.2 あたりが変化わかりやすい
+# =========================
+POSTAL_CHAR_SPACING_MM = 0.9
 
 # =========================
 # ベース配置（mm）
@@ -72,7 +79,6 @@ ROTATE_90_CHARS = set([
     "（", "）", "(", ")",
     "「", "」", "『", "』",
 ])
-
 
 # ★向きが逆なので180度追加回転
 FLIP_180_CHARS = set([
@@ -123,6 +129,43 @@ def split_two_blocks_by_space(s: str):
 
 def y_from_top_mm(y_mm_from_top: float) -> float:
     return PAGE_H - (y_mm_from_top * mm)
+
+
+def draw_spaced_text(
+    c: canvas.Canvas,
+    x: float,
+    y: float,
+    text: str,
+    font_name: str,
+    font_size: float,
+    char_spacing_mm: float = 0.0,
+    center_total: bool = False,
+):
+    """
+    横書きの文字間隔を mm で指定して描画する。
+    x,y は「左端基準」。center_total=True のときは x を中心として全体を中央揃え。
+    """
+    s = str(text)
+    spacing = char_spacing_mm * mm
+
+    # 全体幅（中央揃え用）
+    total_w = 0.0
+    if center_total:
+        for i, ch in enumerate(s):
+            w = pdfmetrics.stringWidth(ch, font_name, font_size)
+            total_w += w
+            if i != len(s) - 1:
+                total_w += spacing
+
+        x = x - total_w / 2
+
+    cur_x = x
+    for i, ch in enumerate(s):
+        c.drawString(cur_x, y, ch)
+        w = pdfmetrics.stringWidth(ch, font_name, font_size)
+        cur_x += w
+        if i != len(s) - 1:
+            cur_x += spacing
 
 
 def draw_vertical_text_from_top(
@@ -231,12 +274,22 @@ for csv_path in INPUT_DIR.glob("*.csv"):
             gx = GLOBAL_OFFSET_X_MM
             gy = GLOBAL_OFFSET_Y_MM
 
-            # 郵便番号
-            c.setFont(FONT_NAME, 20)
-            c.drawString(
-                (BASE_POSTAL_X_MM + gx + POSTAL_OFFSET_X_MM) * mm,
-                y_from_top_mm(BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM),
-                f"〒{postal}"
+            # 郵便番号（★文字間隔指定対応）
+            postal_font_size = 20
+            c.setFont(FONT_NAME, postal_font_size)
+
+            postal_x = (BASE_POSTAL_X_MM + gx + POSTAL_OFFSET_X_MM) * mm
+            postal_y = y_from_top_mm(BASE_POSTAL_Y_MM + gy + POSTAL_OFFSET_Y_MM)
+
+            draw_spaced_text(
+                c=c,
+                x=postal_x,
+                y=postal_y,
+                text=f"〒{postal}",
+                font_name=FONT_NAME,
+                font_size=postal_font_size,
+                char_spacing_mm=POSTAL_CHAR_SPACING_MM,
+                center_total=False,  # 必要なら True にすると「xを中心に全体中央揃え」
             )
 
             # ===== 住所 =====
