@@ -31,10 +31,10 @@ POSTAL_OFFSET_X_MM = 50
 POSTAL_OFFSET_Y_MM = 10
 
 ADDR_OFFSET_X_MM = 0
-ADDR_OFFSET_Y_MM = 0
+ADDR_OFFSET_Y_MM = 5
 
 NAME_OFFSET_X_MM = 0
-NAME_OFFSET_Y_MM = 0
+NAME_OFFSET_Y_MM = 5
 
 # =========================
 # ★文字間（縦送り）調整（mm）
