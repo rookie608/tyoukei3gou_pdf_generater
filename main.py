@@ -1,4 +1,5 @@
 import csv
+import re
 from pathlib import Path
 from reportlab.lib.pagesizes import mm
 from reportlab.pdfgen import canvas
@@ -19,7 +20,7 @@ PAGE_H = 235 * mm
 FONT_NAME = "HeiseiKakuGo-W5"
 pdfmetrics.registerFont(UnicodeCIDFont(FONT_NAME))
 
-PDF_PAGE_LIMIT = 20  # ★1ファイルあたりのページ数
+PDF_PAGE_LIMIT = 1000  # ★1ファイルあたりのページ数
 
 # =========================
 # ★オフセット（mm）
@@ -27,7 +28,7 @@ PDF_PAGE_LIMIT = 20  # ★1ファイルあたりのページ数
 GLOBAL_OFFSET_X_MM = 0
 GLOBAL_OFFSET_Y_MM = 0
 
-POSTAL_OFFSET_X_MM = 50
+POSTAL_OFFSET_X_MM = 49
 POSTAL_OFFSET_Y_MM = 10
 
 ADDR_OFFSET_X_MM = 0
@@ -74,8 +75,8 @@ NAME_COLUMN_GAP_MM = 12
 # =========================
 ROTATE_90_CHARS = set([
     "、", "。", "，", "．",
-    "ー", "-", "−", "―", "—",
-    "〜", "~",          # ← ★追加
+    "ー", "-", "−", "―", "—", "－", "ｰ", "‐", "–",
+    "〜", "~",
     "（", "）", "(", ")",
     "「", "」", "『", "』",
 ])
@@ -89,11 +90,15 @@ FLIP_180_CHARS = set([
 # ★回転文字の微調整（font_size倍率）
 # rotate(90)後は y を増やすと「左」に寄る
 ROTATE_ADJUST = {
-    "ー": {"dx": 0.0, "dy": 0.18},
+    "ー": {"dx": 0.0, "dy": 0.12},
     "―": {"dx": 0.0, "dy": 0.18},
     "—": {"dx": 0.0, "dy": 0.18},
     "-": {"dx": 0.0, "dy": 0.18},
     "−": {"dx": 0.0, "dy": 0.18},
+    "－": {"dx": 0.0, "dy": 0.18},
+    "ｰ": {"dx": 0.0, "dy": 0.18},
+    "‐": {"dx": 0.0, "dy": 0.18},
+    "–": {"dx": 0.0, "dy": 0.18},
     "〜": {"dx": 0.0, "dy": 0.18},
     "~": {"dx": 0.0, "dy": 0.18},
 }
@@ -105,16 +110,43 @@ CHOONPU_SIZE_SCALE = 0.75   # 0.70〜0.85 推奨
 CHOONPU_EXTRA_SHIFT = 0.10  # 左寄せ微調整（font_size倍率）
 
 # =========================
+# 住所の「番地ハイフン」正規化（品質優先）
+# - 数字(半角/全角)の間にある線だけを半角ハイフンへ
+# - 建物名の長音「ー」等は基本そのまま
+# =========================
+# よくある “線/ダッシュ/マイナス/長音/全角ハイフン” をまとめて対象にする
+_ADDRESS_DASH_CHARS = r"ーｰ―—−－‐-‒–〜~"
+# 「数字の間」に挟まっている場合のみ置換（連続もまとめて1本に）
+_RE_ADDR_DASH_BETWEEN_DIGITS = re.compile(
+    rf"(?<=[0-9０-９])([{_ADDRESS_DASH_CHARS}]+)(?=[0-9０-９])"
+)
+_RE_MULTIPLE_HYPHENS = re.compile(r"-{2,}")
+
+def normalize_address_hyphens(address: str) -> str:
+    """
+    住所中の「番地表記としての線」を半角ハイフン '-' に正規化。
+    例: 1ー2－3, １−２−３ -> 1-2-3 / １-２-３（数字自体は原文維持）
+    """
+    s = str(address)
+
+    # 数字に挟まれた線だけ '-' に
+    s = _RE_ADDR_DASH_BETWEEN_DIGITS.sub("-", s)
+
+    # もし混在で '--' になったら1本へ
+    s = _RE_MULTIPLE_HYPHENS.sub("-", s)
+
+    return s
+
+# =========================
 # ユーティリティ
 # =========================
 def format_postal(code: str) -> str:
     s = "".join(filter(str.isdigit, str(code)))
     return f"{s[:3]}-{s[3:]}" if len(s) == 7 else str(code).strip()
 
-
 def split_address_for_sample_style(address: str) -> str:
-    return str(address)
-
+    # ここで「住所だけ」ハイフン正規化を適用
+    return normalize_address_hyphens(address)
 
 def split_two_blocks_by_space(s: str):
     s = str(s).strip()
@@ -126,10 +158,8 @@ def split_two_blocks_by_space(s: str):
         return a.strip(), b.strip()
     return s, ""
 
-
 def y_from_top_mm(y_mm_from_top: float) -> float:
     return PAGE_H - (y_mm_from_top * mm)
-
 
 def draw_spaced_text(
     c: canvas.Canvas,
@@ -156,7 +186,6 @@ def draw_spaced_text(
             total_w += w
             if i != len(s) - 1:
                 total_w += spacing
-
         x = x - total_w / 2
 
     cur_x = x
@@ -166,7 +195,6 @@ def draw_spaced_text(
         cur_x += w
         if i != len(s) - 1:
             cur_x += spacing
-
 
 def draw_vertical_text_from_top(
     c: canvas.Canvas,
@@ -213,6 +241,7 @@ def draw_vertical_text_from_top(
             extra_dx = 0.0
             extra_dy = 0.0
 
+            # 「ー」は “長音” の見た目強化用（番地ハイフンは '-' に正規化される想定）
             if ch == "ー":
                 draw_font_size = font_size * CHOONPU_SIZE_SCALE
                 extra_dy = font_size * CHOONPU_EXTRA_SHIFT
@@ -235,18 +264,15 @@ def draw_vertical_text_from_top(
 
         y -= leading
 
-
 # =========================
 # メイン処理
 # =========================
 pdf_index = 1
 page_in_current_pdf = 0
 
-
 def start_new_pdf(index: int):
     path = OUTPUT_DIR / f"宛名_{index:03d}.pdf"
     return canvas.Canvas(str(path), pagesize=(PAGE_W, PAGE_H))
-
 
 c = start_new_pdf(pdf_index)
 total_pages = 0
@@ -258,6 +284,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
 
         for row in reader:
             postal = format_postal(row.get("郵便番号", ""))
+            # ★住所はここで正規化される（数字間の線だけ '-' に）
             address_raw = split_address_for_sample_style(row.get("住所", ""))
             sei = str(row.get("氏", "")).strip()
             mei = str(row.get("名", "")).strip()
@@ -289,7 +316,7 @@ for csv_path in INPUT_DIR.glob("*.csv"):
                 font_name=FONT_NAME,
                 font_size=postal_font_size,
                 char_spacing_mm=POSTAL_CHAR_SPACING_MM,
-                center_total=False,  # 必要なら True にすると「xを中心に全体中央揃え」
+                center_total=False,
             )
 
             # ===== 住所 =====
